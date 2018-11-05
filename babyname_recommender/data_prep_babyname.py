@@ -47,7 +47,7 @@ class Setup_Name_DB:
         self.c.execute(msg,t)
         name_id = self.c.fetchall()
         if len(name_id) == 1:
-            return name_id
+            return name_id[0][0]
         return None
 
     def collect_filenames(self):
@@ -118,7 +118,7 @@ class Setup_Name_DB:
                 count_names+=1
                 section = 'names of {}'.format(year)
                 self.progress(count_names,num_names,section)
-            count1 += 1
+            count_years += 1
             self.progress(count_years,num_years,'all years')
         return None
     

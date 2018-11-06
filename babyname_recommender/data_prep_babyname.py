@@ -2,8 +2,8 @@ import sqlite3
 import numpy as np
 import glob
 import os
-
-from errors import MissingNameID
+import time
+from sqlite3 import Error
 
 
 class Setup_Name_DB:
@@ -12,11 +12,14 @@ class Setup_Name_DB:
         self.conn = sqlite3.connect(database)
         self.c = self.conn.cursor()
         
-    def execute_commit_msg(self,msg,t=None):
+    def execute_commit_msg(self,msg,t=None,many=False):
         if t is None:
             self.c.execute(msg)
         else:
-            self.c.execute(msg,t)
+            if many == False:
+                self.c.execute(msg,t)
+            else:
+                self.c.executemany(msg,t)
         self.conn.commit()
         return None
 
@@ -31,25 +34,6 @@ class Setup_Name_DB:
         self.execute_commit_msg(msg)
         return None
     
-    def check_if_name_exists(self,name,sex):
-        msg = '''SELECT * FROM names WHERE name=? AND sex=? '''
-        t = (name,sex,)
-        self.c.execute(msg,t)
-        names = self.c.fetchall()
-        if len(names) == 0:
-            return False
-        else:
-            return True
-        
-    def get_name_id(self,name,sex):
-        t = (name,sex,)
-        msg = '''SELECT name_id FROM names WHERE name=? AND sex=? '''
-        self.c.execute(msg,t)
-        name_id = self.c.fetchall()
-        if len(name_id) == 1:
-            return name_id[0][0]
-        return None
-
     def collect_filenames(self):
         text_files = []
         for txt in glob.glob('./names/*.txt'):
@@ -72,58 +56,68 @@ class Setup_Name_DB:
         popularity = name_entry[2]
         return name, sex, popularity
     
-    def insert_name_data(self,data_entry,year):
-        try:
-            name,sex,popularity = self.get_name_info(data_entry)
-
-            #insert name and sex data into names database
-            # IF name doesn't exist
-            name_exist = self.check_if_name_exists(name,sex)
-            if name_exist == False:
-                t = (name,sex,)
-                msg = '''INSERT INTO names VALUES(NULL, ?, ?) '''
-                self.execute_commit_msg(msg,t)
-            else:
-                print("name {} for sex {} exists already".format(name,sex))
-            #insert name popularity into years database:
-            msg = '''INSERT INTO popularity VALUES(NULL, ?, ?, ?) '''
-            name_id = self.get_name_id(name,sex)
-            if name_id is None:
-                raise MissingNameID("The name ID for the name {} for sex {} cannot be collected".format(name,sex))
-            t = (str(year),str(popularity),str(name_id),)
-            self.execute_commit_msg(msg,t)
-        except MissingNameID as e:
-            print(e)
-            pass
-        finally:
-            self.conn.commit()
-        return None
+    def organize_name_data(self,year_data_dict):
+        
+        #need ids when inserting batch data into SQL tables
+        #create them by using count_years and count_names
+        name_sex_ids = {}
+        year_popularity_ids = {}
+        
+        count_years = 1 
+        count_names = 1
+        for key,value in year_data_dict.items():
+            year = key
+            
+            for entry in value:
+                name,sex,popularity = self.get_name_info(entry)
+                if (name,sex) not in name_sex_ids:
+                    name_sex_ids[(name,sex)]=count_names
+                    count_names+=1
+                year_popularity_ids[(year,popularity,name_sex_ids[(name,sex)])] = count_years
+                count_years += 1
+        return name_sex_ids, year_popularity_ids
     
-    def save_name_data_2_SQL(self):
+    def data_2_dict(self):
         #collect filenames
         text_files = self.collect_filenames()
         num_years = len(text_files)
         count_years = 0
-        # I did a for loop here to reduce memory costs.
+        year_data_dict = {}
         for text_path in text_files:
+            year_start = time.time()
             with open(text_path) as f:
                 data = f.read()
             year = self.get_year(text_path)
             print("Processing names in the year {}".format(year))
             name_data =  self.separate_name_data(data)
-            num_names = len(name_data)
-            count_names = 0
-            for entry in name_data:
-                self.insert_name_data(entry,year)
-                count_names+=1
-                section = 'names of {}'.format(year)
-                self.progress(count_names,num_names,section)
-            count_years += 1
-            self.progress(count_years,num_years,'all years')
+            year_data_dict[year] = name_data
+        return year_data_dict
+    
+    def prep_dict_4_SQL(self,names_dict,years_dict):
+        names_prepped = []
+        years_prepped = []
+        for key, value in names_dict.items():
+            names_prepped.append((value,key[0],key[1]))
+        for key, value in years_dict.items():
+            years_prepped.append((value,key[0],key[1],key[2]))
+        return names_prepped, years_prepped
+    
+    def batch_insert_data(self,names_prepped,years_prepped):
+        try:
+            msg_names = '''INSERT INTO names VALUES(?,?,?) '''
+            msg_years = '''INSERT INTO popularity VALUES(?,?,?,?) '''
+            self.execute_commit_msg(msg_names,names_prepped,many=True)
+            self.execute_commit_msg(msg_years,years_prepped,many=True)
+            return True
+        except Error as e:
+            print("Database Error occured: {}".format(e))
+        finally:
+            self.conn.close()
         return None
     
-    def progress(self,curr_count,total_count,section):
-        percent = round(curr_count/float(total_count)*100,2)
-        print("{}% through {}".format(percent,section))
-        return None
-    
+    def collect_save_data(self):
+        data_dict = self.data_2_dict()
+        name_data_dict, year_data_dict = self.organize_name_data(data_dict)
+        names4sql, years4sql = self.prep_dict_4_SQL(name_data_dict,year_data_dict)
+        success = self.batch_insert_data(names4sql,years4sql)
+        return success

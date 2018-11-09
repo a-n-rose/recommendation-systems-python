@@ -209,6 +209,8 @@ class BabynameRecommender:
                 if rating == False:
                     collect = False
                     break
+                elif rating is None:
+                    pass
                 elif rating.isdigit():
                     rating_dict[names[i][0]] = rating
         return rating_dict

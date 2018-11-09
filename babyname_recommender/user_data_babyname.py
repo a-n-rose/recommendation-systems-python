@@ -203,6 +203,8 @@ class BabynameRecommender:
         rating_dict = {}
         while collect == True:
             for i in range(len(names)):
+                if collect == False:
+                    break
                 rating = self.rate_name(names[i][1])
                 if rating == False:
                     collect = False

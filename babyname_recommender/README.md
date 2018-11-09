@@ -2,13 +2,51 @@
 
 My blog post on the creation of the database can be found <a href="https://a-n-rose.github.io/2018/11/05/updated-babyname-recommender.html">here</a>.
 
-Currently my scripts only set up a database with 2 tables:
+Currently my scripts 
 
-1) 'names': name_id, name, sex
+1) set up a database organizing US Name data into 2 tables and 
 
-2) 'popularity': year_id, year, popularity, name_id
+2) allows user to:
+* create an account 
+* create multiple searches (i.e. rate names for a daughter/ son/ dog/ etc.)
+* rate names based on gender (or not)
 
-Additional scripts will be added for building a recommendation system.
+## Database structure: 
+
+Tables: 'names', 'popularity', 'users', 'ratinglists', 'ratings'
+
+### Name data 
+
+1) 'names': columns:
+* name_id 
+* name
+* sex
+
+2) 'popularity': columns
+* year_id 
+* year
+* popularity 
+* name_id (link to the names table)
+
+### User data
+
+3) 'users' : columns 
+* user_id
+* username
+* password (not protected)
+
+4) 'ratinglists': columns
+* ratinglist_id
+* ratinglist_name
+* babyname_type (all, girl, boy)
+* ratinglist_order (user's 1st, 2nd, etc) 
+* ratinglist_user_id (user_id - link to users table)
+
+5) 'ratings' : columns
+* rating_id
+* rating
+* rating_ratinglist_id (ratinglist_id - links to the list)
+* rating_name_id (name_id - links to the name)
 
 ### Getting started
 
@@ -36,8 +74,25 @@ $ source env/bin/activate
 (env)...$ pip install Numpy
 ```
 
-### Run the progam
+### Run the progam to setup the database.
 ```
 (env)...$ python3 database_setup.py
 
 ```
+
+### To collect ratings:
+Run *after* the database has been set up!
+
+```
+(env)...$ python3 babyname_run.py
+```
+
+## ToDo:
+
+### In general
+* unittests
+
+### Babyname Rating Collector
+* Add 'undo' functionality
+* Add name search functionality
+* Add recommender functionality 

@@ -1,3 +1,8 @@
 env/
 names/
 names_full/
+old/
+__pycache__/
+names_short/
+*.db
+*.directory

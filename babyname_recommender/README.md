@@ -96,3 +96,4 @@ Run *after* the database has been set up!
 * Add 'undo' functionality
 * Add name search functionality
 * Add recommender functionality 
+* Add functionality to rate only non-rated names

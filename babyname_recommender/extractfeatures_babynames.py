@@ -63,7 +63,7 @@ class LettersLength:
         self.lengths_int_dict = length_int_dict
         return letters_int_dict, length_int_dict
 
-    def coll_letter_length_data2matrix(self,names,num_columns):
+    def coll_letter_length_data(self,names,num_columns):
         features_matrix = np.empty((len(names),num_columns))
       
         for i in range(len(names)):
@@ -81,8 +81,8 @@ class LettersLength:
         names = self.get_names(babyname_sex)
         letters_int_dict, lengths_int_dict  = self.get_chars_length_dicts(names)
         print(self.lengths_int_dict)
-        #num_cols = len(letters_int_dict)+1+1 #(1) length, 2) id )
-        #matrix_letters_length = self.coll_letter_length_data2matrix(names,num_cols)
-        #self.create_feature_table()
-        #self.save_basic_features(matrix_letters_length)
+        num_cols = len(letters_int_dict)+1+1 #(1) length, 2) id )
+        matrix_letters_length = self.coll_letter_length_data(names,num_cols)
+        self.create_feature_table()
+        self.save_basic_features(matrix_letters_length)
         return None

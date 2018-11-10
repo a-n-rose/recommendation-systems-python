@@ -2,20 +2,14 @@ import sqlite3
 import numpy as np
 import pandas as pd
 
-class LettersLength:
+class BuildTables:
     def __init__(self,database):
         self.database = database
         self.conn = sqlite3.connect(database)
         self.c = self.conn.cursor()
         
-    def get_names(self,babyname_sex=None): 
-        self.babyname_type = babyname_sex
-        if babyname_sex == 1:
-            msg = '''SELECT name_id, name FROM names WHERE sex='M' '''
-        elif babyname_sex == 2:
-            msg = '''SELECT name_id, name FROM names WHERE sex='F' '''
-        else:
-            msg = '''SELECT name_id, name FROM names '''
+    def get_names(self): 
+        msg = '''SELECT name_id, name FROM names '''
         self.c.execute(msg)
         names = self.c.fetchall()
         return names
@@ -26,21 +20,26 @@ class LettersLength:
             cols_types.append("{} int".format(value))
         cols_types.append("length int")
         cols_str = ','.join(cols_types)
-        msg = '''CREATE TABLE IF NOT EXISTS basic_features(feature_name_id integer primary key, %s, FOREIGN KEY(feature_name_id) REFERENCES names(name_id) ) ''' % cols_str
+        msg = '''CREATE TABLE IF NOT EXISTS basic_features_letters_length(feature_name_id integer primary key, %s, FOREIGN KEY(feature_name_id) REFERENCES names(name_id) ) ''' % cols_str
         self.c.execute(msg)
         self.conn.commit()
         return None
-    
+
     def save_basic_features(self,prepped_data):
+        self.create_feature_table()
         cols_var = []
         for i in range(prepped_data.shape[1]):
             cols_var.append(" ?")
         cols = ",".join(cols_var)
 
-        msg = '''INSERT INTO basic_features VALUES (%s) ''' % cols
+        msg = '''INSERT INTO basic_features_letters_length VALUES (%s) ''' % cols
         self.c.executemany(msg,prepped_data)
         self.conn.commit()
         return None
+
+    
+class BuildFeatures:
+
 
     def get_chars_length_dicts(self,names_tuple_list):
         letters_int_dict = {}
@@ -77,12 +76,8 @@ class LettersLength:
             features_matrix[i] = row
         return features_matrix
     
-    def define_features_letters_length(self,babyname_sex=None):
-        names = self.get_names(babyname_sex)
+    def define_features_letters_length(self,names):
         letters_int_dict, lengths_int_dict  = self.get_chars_length_dicts(names)
-        print(self.lengths_int_dict)
         num_cols = len(letters_int_dict)+1+1 #(1) length, 2) id )
         matrix_letters_length = self.coll_letter_length_data(names,num_cols)
-        self.create_feature_table()
-        self.save_basic_features(matrix_letters_length)
-        return None
+        return matrix_letters_length, letters_int_dict

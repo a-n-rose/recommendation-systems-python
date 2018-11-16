@@ -3,7 +3,7 @@ import re
 from errors import ExitApp
 from input_manager import rem_space_specialchar
 
-class UserAccount:
+class LoginUser:
     def __init__(self,database):
         self.database = database
         self.conn = sqlite3.connect(self.database)

@@ -2,12 +2,16 @@
 Babyname recommender
 '''
 import sys
+import traceback
 from errors import ExitApp
 from user_account import LoginUser
 from user_data_babyname import UserData
 
-
-def main(database,num_clusters,features_used):
+            
+if __name__ == "__main__":
+    database = "babynames_USA.db"
+    num_clusters = 30
+    features_used = "original_letters_length"
     try:
         login = None
         ud = None
@@ -22,21 +26,16 @@ def main(database,num_clusters,features_used):
             raise SystemExit
         ud = UserData(database,user_id,num_clusters,features_used)
         ud.main_menu()
-        return 1
     except ExitApp:
         print("Have a good day!")
     except SystemExit as e:
         print("Problem occurred: {}. Had to close app.".format(e))
+    except Exception as e:
+        print(e)
+        traceback.print_exception(e)
     finally:
         if login:
             login.conn.close()
         if ud:
             ud.conn.close()
-        return 0
 
-            
-if __name__ == "__main__":
-    database = "babynames_USA.db"
-    num_clusters = 50
-    features_used = "original_letters_length"
-    sys.exit(main(database,num_clusters,features_used))

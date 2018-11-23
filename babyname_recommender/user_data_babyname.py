@@ -1,23 +1,33 @@
+import pandas as pd
+import numpy as np
 import sqlite3
+import time
 from errors import ExitApp
 from random import shuffle
+from build_clusters import BuildClusters
 
 class UserData:
-    def __init__(self,database,user_id,num_clusters,features_used):
+    def __init__(self,database,user_id,num_clusters=None,features_used=None):
         self.database = database
         self.user_id = user_id
         self.conn = sqlite3.connect(database)
         self.c = self.conn.cursor()
         self.ratinglists = self.access_ratinglist_table()
-        self.num_clusters = num_clusters
-        self.features_used = features_used
+        if num_clusters is None:
+            self.num_clusters = 30
+        else:
+            self.num_clusters = num_clusters
+        if features_used is None:
+            self.features_used = "original_letters_length"
+        else:
+            self.features_used = features_used
         
 ####################### SQL FUNCTIONS #########################################
 
 # CREATE/INITIATE TABLES
 
     def access_ratinglist_table(self):
-        msg = '''CREATE TABLE IF NOT EXISTS ratinglists(ratinglist_id integer primary key, ratinglist_name text, babyname_type int,ratinglist_order int, ratinglist_user_id int, FOREIGN KEY(ratinglist_user_id) REFERENCES users(user_id))'''
+        msg = '''CREATE TABLE IF NOT EXISTS ratinglists(ratinglist_id INTEGER PRIMARY KEY, ratinglist_name TEXT, babyname_type INT,ratinglist_order INT, version INT,ratinglist_user_id INT, FOREIGN KEY(ratinglist_user_id) REFERENCES users(user_id))'''
         self.c.execute(msg)
         self.conn.commit()
         return True
@@ -29,15 +39,21 @@ class UserData:
         return True
     
     def access_user_clusters_table(self):
-        msg = '''CREATE TABLE IF NOT EXISTS users_clusters(cluster_id INTEGER PRIMARY KEY, cluster INT, num_clusters INT, features_used TEXT, cluster_name_id INT, cluster_ratinglist_id INT, FOREIGN KEY(cluster_name_id) REFERENCES names(name_id), FOREIGN KEY(cluster_ratinglist_id) REFERENCES ratinglists(ratinglist_id)) '''
+        msg = '''CREATE TABLE IF NOT EXISTS users_clusters_updates(cluster_id INTEGER PRIMARY KEY, cluster INT, num_clusters INT, features_used TEXT, list_version INT, cluster_name_id INT, cluster_ratinglist_id INT, FOREIGN KEY(list_version) REFERENCES ratinglists(version),FOREIGN KEY(cluster_name_id) REFERENCES names(name_id), FOREIGN KEY(cluster_ratinglist_id) REFERENCES ratinglists(ratinglist_id)) '''
         self.c.execute(msg)
         self.conn.commit()
 
 # INSERT STATEMENTS
     
     def initiate_default_clusters(self, default_clusters):
-        msg = '''INSERT INTO users_clusters VALUES(NULL, ?, ?, ?, ?, ?) '''
+        msg = '''INSERT INTO users_clusters_updates VALUES(NULL, ?, ?, ?, ?, ?, ?) '''
         self.c.executemany(msg,default_clusters)
+        self.conn.commit()
+        return None
+    
+    def update_clusters_database(self,new_clusters_prepped):
+        msg = '''INSERT INTO users_clusters_updates VALUES(NULL,?, ?, ?, ?, ?, ?) '''
+        self.c.executemany(msg,new_clusters_prepped)
         self.conn.commit()
         return None
     
@@ -46,8 +62,8 @@ class UserData:
         list_order = str(len(lists)+1)
         self.listname = listname
         self.babyname_type = babyname_type
-        t = (listname,babyname_type,list_order,self.user_id)
-        msg = '''INSERT INTO ratinglists VALUES(NULL,?,?,?,?) '''
+        t = (listname,babyname_type,list_order,self.list_version,self.user_id)
+        msg = '''INSERT INTO ratinglists VALUES(NULL,?,?,?,?,?) '''
         self.c.execute(msg,t)
         self.conn.commit()
         return None
@@ -58,6 +74,25 @@ class UserData:
         self.conn.commit()
         return None
     
+    def get_list_version(self):
+        msg = '''SELECT version FROM ratinglists WHERE ratinglist_id=?  '''
+        t = (self.list_id,)
+        self.c.execute(msg,t)
+        list_version = self.c.fetchall()[0][0]
+        self.list_version = list_version
+        return list_version
+    
+    def list_update(self):
+        prev_version = self.get_list_version()
+        print("previous version: {}".format(prev_version))
+        curr_version = int(prev_version) + 1
+        print("current version: {}".format(curr_version))
+        msg = '''UPDATE ratinglists SET version=? WHERE ratinglist_id=? '''
+        t = (curr_version,self.list_id)
+        self.c.execute(msg,t)
+        self.conn.commit()
+        return None
+        
 # SELECT STATEMENTS ( 1) lists, 2) clusters, 3) names )
     
     def get_lists(self):
@@ -79,8 +114,8 @@ class UserData:
     
     def check_for_clusters(self):
         self.access_user_clusters_table()
-        t = (self.get_list_id(),self.num_clusters,self.features_used)
-        msg = '''SELECT cluster FROM users_clusters WHERE cluster_ratinglist_id=? AND num_clusters=? AND features_used=? LIMIT 10 '''
+        t = (self.get_list_id(),self.num_clusters,self.features_used,self.get_list_version())
+        msg = '''SELECT cluster FROM users_clusters_updates WHERE cluster_ratinglist_id=? AND num_clusters=? AND features_used=? AND list_version=? LIMIT 10 '''
         self.c.execute(msg,t)
         clusters = self.c.fetchall()
         if len(clusters) == 10:
@@ -88,9 +123,6 @@ class UserData:
         else:
             return False
         return None
-    
-#cluster INT, num_clusters INT, features_used TEXT, cluster_name_id INT, cluster_ratinglist_id INT,
-        
     
     def collect_default_clusters(self):
         t = (self.num_clusters,self.features_used)
@@ -101,8 +133,8 @@ class UserData:
 
     
     def get_clusters_nameid(self):
-        t = (str(self.list_id),)
-        msg = '''SELECT cluster_name_id, cluster FROM users_clusters WHERE cluster_ratinglist_id=? '''
+        t = (str(self.list_id),str(self.num_clusters),self.features_used,self.list_version)
+        msg = '''SELECT cluster_name_id, cluster FROM users_clusters_updates WHERE cluster_ratinglist_id=? AND num_clusters=? AND features_used=? AND list_version=?'''
         self.c.execute(msg,t)
         name_clusters = self.c.fetchall()
         return name_clusters
@@ -129,7 +161,7 @@ class UserData:
         return babyname_type[0][0]
     
     def get_rated_names(self):
-        t = (str(self.list_id),)
+        t = (self.list_id,)
         msg = '''SELECT rating_name_id,rating FROM ratings WHERE rating_ratinglist_id=? '''
         self.c.execute(msg,t)
         ratings = self.c.fetchall()
@@ -141,6 +173,32 @@ class UserData:
         names = self.c.fetchall()
         return names
     
+    #def get_name_ratings(self, rating_list_id):
+        #msg1 = '''SELECT rating, rating_name_id FROM ratings WHERE rating_ratinglist_id=? '''
+        #t1 = (rating_list_id,)
+        #msg2 = '''SELECT cluster, cluster_name_id FROM users_clusters WHERE cluster_ratinglist_id=? AND num_clusters=? AND features_used=? '''
+        #t2 = (rating_list_id,self.num_clusters,self.features_used)
+        #self.c.execute(msg1,t1)
+        #name_ratings = self.c.fetchall()
+        #self.c.execute(msg2,t2)
+        #name_clusters = self.c.fetchall()
+        #return name_ratings, name_clusters
+    
+    def get_name_features(self):
+        #used * because columns span the alphabet.. don't want to write that all down here...
+        msg = '''SELECT * FROM basic_features_letters_length '''
+        self.c.execute(msg)
+        basic_features = self.c.fetchall()
+        return basic_features
+    
+
+    
+    #def update_clusters_database(self,new_clusters_prepped):
+        #msg = ''' UPDATE users_clusters_updates SET cluster=? WHERE cluster_ratinglist_id=? AND num_clusters=? AND cluster_name_id=?'''
+        ##print(new_clusters_prepped)
+        #self.c.executemany(msg,new_clusters_prepped)
+        #self.conn.commit()
+        #return None
 
 ####################### MAIN FUNCTIONS THAT CALL OTHER FUNCTIONS #########################################
     
@@ -154,12 +212,10 @@ class UserData:
             self.show_and_choose_lists()
             self.activate_clusters()
             self.rate_names()
-            self.main_menu()
         elif 2 == int(choice):
             self.show_and_choose_lists()
             self.activate_clusters()
             self.recommend_names()
-            self.main_menu()
         else:
             print("Please choose the corresponding digit.")
             self.main_menu()
@@ -186,6 +242,7 @@ class UserData:
         return None
     
     def create_new_ratinglist(self):
+        self.list_version = 1
         list_name = self.get_list_name()
         self.show_nametype_options()
         babyname_type = self.choose_babyname_type()
@@ -194,14 +251,130 @@ class UserData:
         self.make_list_dict(lists_actualized)
         self.set_mostrecentlist_as_listchoice()
         self.access_user_clusters_table()
-        self.initiate_default_clusters()
+        self.activate_clusters()
         self.rate_names()
         return None
+    
+    
+    def update_clusters(self):
+        ###use pandas
+        start = time.time()
+        
+        
+        print("getting rated names")
+        all_rated_names = self.get_rated_names()
+        #print("RATED NAMES: {}".format(all_rated_names))
+        name_features = self.get_name_features()
+        print("getting name_features")
+        #print("NAME FEATURES: {}".format(name_features))
+        bc = BuildClusters()
+        name_features_dict = bc.features_2_dict(name_features)
+        #print("NAME FEATURE DICTIONARY: {}".format(name_features_dict))
+        print("prepped name_features_dict")
+        ratednames_features_dict = bc.ratednames_features_2_dict(name_features_dict,all_rated_names)
+        #print("RATED NAMES DICTIONARY: {}".format(ratednames_features_dict))
+        print("prepped ratednames_features_dict")
+        #dataframe:
+        rated_names_df = bc.dict2dataframe(ratednames_features_dict)
+        all_names_df = bc.dict2dataframe(name_features_dict)
+        #remove unnecessary columns (want only
+        if len(all_names_df.columns) > 27:
+            all_names_df = all_names_df.loc[:,:26]
+        
+        
+        #print("rated_names_df: {}".format(rated_names_df.head()))
+        #print("all names df: {}".format(all_names_df.head()))
+        rated_names_features_df = rated_names_df.iloc[:,:-1]
+        rated_names_ratings_df = rated_names_df.iloc[:,-1]
+        #print("rated names features: {}".format(rated_names_features_df.head()))
+        #print("rated names ratings: {}".format(rated_names_ratings_df.head()))
+        cols = rated_names_features_df.columns
+        length_col = cols[-1]
+        rated_names_features_encoded = pd.get_dummies(rated_names_features_df,columns=[length_col])
+        #print("Columns: {}".format(cols))
+        encoded_feature_cols = rated_names_features_encoded.columns
+        #print("Encoded columns: {}".format(encoded_feature_cols))
+        
+        
+
+        feature_matrix_reduced, labels_chosen, labels_rank = bc.prune_features(rated_names_features_encoded.values,rated_names_ratings_df.values)
+        #print(labels_chosen)
+        #print(type(labels_chosen))
+        #print(labels_chosen[0])
+        selected_feature_indices = np.where(labels_chosen)
+        #print(selected_feature_indices)
+        
+        #print("feature matrix reduced: {}".format(feature_matrix_reduced[:20]))
+        
+        
+         
+        
+        all_names_features_encoded = pd.get_dummies(all_names_df,columns=[length_col])
+        all_name_encoded_cols = all_names_features_encoded.columns
+        #print(all_name_encoded_cols)
+        selected_column_names = [encoded_feature_cols[i] for i in selected_feature_indices]
+        
+        #print(selected_column_names)
+        #print(selected_column_names[0])
+        new_name_features = all_names_features_encoded.loc[:,selected_column_names[0]].values
+        #print("Encoded all name features: {}".format(all_names_features_encoded.head()))
+        #print("Only relevant features: {}".format(new_name_features[:20]))
+        
+        
+        print("Now preparing new cluster labels")
+        #print("num clusters: {}".format(self.num_clusters))
+        #update clusters with new features
+        updated_clusters = bc.get_cluster_labels(new_name_features,num_clusters=self.num_clusters)
+        print("Cluster lables recalculated.")
+        #print("NEW LABELS: {}".format(updated_clusters))
+        #replace old clusters with new clusters
+        print("now prepping cluster data for sqlite3")
+        updated_clusters_prepped = self.prep_new_clusters_sql(updated_clusters)
+        print("Cluster labels prepped. Now saving to database")
+        self.update_clusters_database(updated_clusters_prepped)
+        self.list_update()
+        print("Finished!")
+        print("Duration: {}".format(time.time()-start))
+        
+        feature_dict = {}
+        alphabet = "abcdefghijklmnopqrstuvwxyz"
+        lengths = ["26_2",  "26_3",  "26_4",  "26_5",  "26_6",  "26_7",  "26_8",  "26_9",  "26_10",  "26_11",  "26_12",  "26_13",  "26_14",  "26_15"]
+        
+        
+        for i,letter in enumerate(alphabet):
+            feature_dict[i] = letter
+        for i,length in enumerate(lengths):
+            feature_dict[length] = "{} characters".format(i+2)
+        
+        relevant_features = []
+        for col_name in selected_column_names[0]:
+            relevant_features.append(feature_dict[col_name])
+            
+        print(relevant_features)
+         
+
+
+        return None
+    
+    def prep_new_clusters_sql(self,new_clusters):
+        '''
+        COLUMNS:
+        cluster_id INTEGER PRIMARY KEY, cluster INT, num_clusters INT, features_used TEXT, list_version INT, cluster_name_id INT, cluster_ratinglist_id INT
+        '''
+        version = int(self.list_version) + 1
+        prepped_clusters = []
+        for i in range(len(new_clusters)):
+            prepped_clusters.append((str(new_clusters[i]),str(self.list_id),str(self.num_clusters),self.features_used,version,str(i+1)))
+        #print("PREPPED CLUSTERS: {}".format(prepped_clusters))
+        return prepped_clusters
     
     def rate_names(self):
         rated_names_dict = self.collect_name_ratings()
         prepped_list = self.prep_rating_names_dict(rated_names_dict)
         self.save_rated_names(prepped_list)
+        self.update_clusters()
+        print("clusters updated!")
+        self.main_menu()
         return None
 
     def recommend_names(self):
@@ -213,8 +386,8 @@ class UserData:
         
         #separate liked from disliked names - see how well the clusters are separating these
         liked_name_ids, disliked_name_ids = self.sort_rated_names(ratings)
-        liked_clusters = self.get_matched_clusters(liked_name_ids,nameid_cluster_dict)
-        disliked_clusters = self.get_matched_clusters(disliked_name_ids,nameid_cluster_dict)
+        liked_clusters = self.get_assigned_clusters(liked_name_ids,nameid_cluster_dict)
+        disliked_clusters = self.get_assigned_clusters(disliked_name_ids,nameid_cluster_dict)
         similarity = self.check_cluster_list_similarity(liked_clusters,disliked_clusters)
         if similarity is not None:
             if similarity > 0.25:
@@ -229,6 +402,7 @@ class UserData:
         name_id_dict = self.get_name_nameid_dict(name_id_tuple)
         rec_names = self.nameid_to_name(rec_name_ids,name_id_dict)
         print("\nRecommended Names for you: \n\n{}".format("\n".join(rec_names[:50])))
+        self.main_menu()
         return None
            
 ####################### SUPPORT FUNCTIONS CALLED BY MAIN FUNCTIONS #########################################
@@ -259,10 +433,16 @@ class UserData:
         return None
     
     def prep_default_clusters(self,default_clusters_list):
+        '''
+        CLUSTER TABLE COLUMNS:
+        cluster_id INTEGER PRIMARY KEY, cluster INT, num_clusters INT, features_used TEXT, list_version INT, cluster_name_id INT, cluster_ratinglist_id INT
+        '''
         default_clusters = []
         list_id = self.get_list_id()
+        list_version = self.get_list_version()
+        #cluster[0] = cluster;  cluster[1] = num_clusters;  cluster[2] = features_used;  cluster[3] = cluster_name_id
         for cluster in default_clusters_list:
-            default_clusters.append((cluster[0],cluster[1],cluster[2],cluster[3],list_id))
+            default_clusters.append((cluster[0],cluster[1],cluster[2],list_version,cluster[3],list_id))
         return default_clusters
         
 # def show_and_choose_lists
@@ -337,6 +517,7 @@ class UserData:
     
     def collect_name_ratings(self):
         collect = True
+        names_rated = 0
         self.access_ratings_table()
         names = self.get_names()
         shuffle(names)
@@ -352,12 +533,18 @@ class UserData:
                 elif rating is None:
                     pass
                 elif rating.isdigit():
+                    names_rated+=1
                     rating_dict[names[i][0]] = rating
+                if names_rated == 25:
+                    print("25 names rated")
+                elif names_rated == 50:
+                    print("50 names rated")
         return rating_dict
     
     def prep_rating_names_dict(self,rated_names_dict):
         list_id = self.get_list_id()
         prepped_list = []
+        #key = name_id, value = rating
         for key, value in rated_names_dict.items():
             prepped_list.append((int(value),list_id,key))
         return prepped_list
@@ -385,11 +572,11 @@ class UserData:
                 cluster_name_dict[name[0]] = name[1]
         return cluster_name_dict
     
-    def get_matched_clusters(self,name_id_list,clusters_names_dict):
-        matched_clusters = []
+    def get_assigned_clusters(self,name_id_list,clusters_names_dict):
+        assigned_clusters = []
         for name_id in name_id_list:
-            matched_clusters.append(clusters_names_dict[name_id])
-        return matched_clusters
+            assigned_clusters.append(clusters_names_dict[name_id])
+        return assigned_clusters
     
     def check_cluster_list_similarity(self,clusterlist1,clusterlist2):
         total_len_cluster1 = len(clusterlist1)
@@ -427,3 +614,4 @@ class UserData:
             names.append(name_id_dict[name_id])
         shuffle(names)
         return names
+    

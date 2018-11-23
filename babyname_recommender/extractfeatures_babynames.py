@@ -20,22 +20,22 @@ class BuildTables:
             cols_types.append("{} int".format(letter))
         cols_types.append("length int")
         cols_str = ','.join(cols_types)
-        msg = '''CREATE TABLE IF NOT EXISTS basic_features(feature_name_id integer primary key, %s, FOREIGN KEY(feature_name_id) REFERENCES names(name_id) ) ''' % cols_str
+        msg = '''CREATE TABLE IF NOT EXISTS basic_features_letters_length(feature_name_id integer primary key, %s, FOREIGN KEY(feature_name_id) REFERENCES names(name_id) ) ''' % cols_str
         self.c.execute(msg)
         self.conn.commit()
         return None
 
-    #def save_basic_features(self,prepped_data):
-        #self.create_feature_table()
-        #cols_var = []
-        #for i in range(prepped_data.shape[1]):
-            #cols_var.append(" ?")
-        #cols = ",".join(cols_var)
+    def save_basic_features(self,prepped_data):
+        self.create_feature_table()
+        cols_var = []
+        for i in range(prepped_data.shape[1]):
+            cols_var.append(" ?")
+        cols = ",".join(cols_var)
 
-        #msg = '''INSERT INTO basic_features_letters_length VALUES (%s) ''' % cols
-        #self.c.executemany(msg,prepped_data)
-        #self.conn.commit()
-        #return None
+        msg = '''INSERT INTO basic_features_letters_length VALUES (%s) ''' % cols
+        self.c.executemany(msg,prepped_data)
+        self.conn.commit()
+        return None
     
     def create_default_clusters_table(self):
         msg = '''CREATE TABLE IF NOT EXISTS default_clusters(cluster_id INTEGER PRIMARY KEY, cluster INT, num_clusters INT, features_used TEXT, cluster_name_id INT, FOREIGN KEY(cluster_name_id) REFERENCES names(name_id)) '''

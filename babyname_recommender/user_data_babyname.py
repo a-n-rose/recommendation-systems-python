@@ -3,7 +3,7 @@ Recommender for names based off of International Phonetic Alphabet and Phonetic 
 
 Some areas "need improvement" - search word to find where
 
-Uses SKlearn KMeans clustering and reverse feature selection (RFE) individualize cluster assignments to user's likes and dislikes
+Uses SKlearn KMeans clustering and recursive feature elimination (RFE) individualize cluster assignments to user's likes and dislikes
 
 Users can create multiple searches, search all names, boy names only or girl names only. The user can save names they get recommended.
 

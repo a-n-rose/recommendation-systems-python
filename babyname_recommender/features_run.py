@@ -11,7 +11,7 @@ from build_clusters import BuildClusters
 if __name__ == "__main__":
     database = "babynames_USA.db"
     num_clusters = [30]
-    features_used = "onehotencoded_original_letters_length"
+    features_used = "features_ipa_extended" #options: "original_letters_length"  "ipa_chars_length"  "features_ipa_extended"
 
 
     try:
@@ -23,32 +23,38 @@ if __name__ == "__main__":
         
         # use name data to build features
         bf = BuildFeatures()
+        bc = BuildClusters()
         # get matrix with letter and length values 
         # and save dictionary with key vaues for column names (letters)
         # to the sql class so they can be saved as column names
         
-        data = bf.define_features_letters_length(names)
+        if features_used == "original_letters_length":
+            data = bf.define_features_letters_length(names)
+            #already saved the basic features...
+            #save the data to the feature table
+            #bt.save_basic_features(data)
+            
+            #first column is name_id
+            features = data[:,1:]
+            print("one-hot-encoding features")
+            
+            #onehotencode length
+            #specify how many categories for each feature expected
+            categories = []
+            for i in range(26):
+                categories.append(([0,1]))
+            categories.append(([2,3,4,5,6,7,8,9,10,11,12,13,14,15]))
+            enc = OneHotEncoder(categories=categories,sparse=False)
+            new_features = enc.fit_transform(features)
         
-        #already saved the basic features...
-        #save the data to the feature table
-        #bt.save_basic_features(data)
-        
-        #first column is name_id
-        features = data[:,1:]
-        print("one-hot-encoding features")
-        
-        #onehotencode length
-        #specify how many categories for each feature expected
-        categories = []
-        for i in range(26):
-            categories.append(([0,1]))
-        categories.append(([2,3,4,5,6,7,8,9,10,11,12,13,14,15]))
-        enc = OneHotEncoder(categories=categories,sparse=False)
-        new_features = enc.fit_transform(features)
-        
-
-        
-        bc = BuildClusters()
+        else:
+            if features_used == "ipa_chars_length":
+                features = bt.get_basic_ipa_features()
+            elif features_used == "features_ipa_extended":
+                features = bt.get_extended_ipa_features()
+            features_dict = bc.features_2_dict(features,ipa=True)
+            new_features_df = bc.dict2dataframe(features_dict)
+            new_features = new_features_df.values
         
         for num in num_clusters:
             start = time.time()

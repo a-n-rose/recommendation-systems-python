@@ -6,6 +6,7 @@ IPA letters, lengths, stress information
 import time
 import traceback
 from ipa_features import IPA 
+from errors import IPAnotAligned
 
 
 
@@ -15,10 +16,14 @@ if __name__=="__main__":
         ipa = None
         database = "babynames_USA.db"
         ipa = IPA(database)
-        ipa_features_dict = ipa.create_ipa_features()
+        new_features, cols = ipa.create_ipa_features()
+        print(new_features)
+        print(cols)
         duration = time.time() - start
         print("Duration: {} sec".format(duration))
         
+    except IPAnotAligned as e:
+        print(e)
     except Exception as e:
         traceback.print_exception(e)
     finally:

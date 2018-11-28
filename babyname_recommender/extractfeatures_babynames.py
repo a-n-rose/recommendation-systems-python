@@ -52,11 +52,25 @@ class BuildTables:
         self.conn.commit()
         return None
     
-
+    def get_basic_ipa_features(self):
+        msg = '''SELECT * FROM basic_features_ipa_chars_length '''
+        self.c.execute(msg)
+        basic_features = self.c.fetchall()
+        return basic_features
+    
+    def get_extended_ipa_features(self):
+        babyname_type = self.get_saved_babyname_type()
+        if int(babyname_type) == 1:
+            msg = '''SELECT * FROM features_ipa_extended'''
+        elif int(babyname_type) == 2:
+            msg = '''SELECT * FROM features_ipa_extended WHERE sex='M' '''
+        elif int(babyname_type) == 3:
+            msg = '''SELECT * FROM features_ipa_extended WHERE sex='F' '''
+        self.c.execute(msg)
+        extended_features = self.c.fetchall()
+        return extended_features
     
 class BuildFeatures:
-
-
     def get_chars_length_dicts(self,names_tuple_list):
         letters_int_dict = {}
         letters_list = []
@@ -104,5 +118,3 @@ class BuildFeatures:
             #append cluster assignment and name_id to list of tuples to save to sql table
             prepped_clusters.append((int(cluster_list[i]),num_clusters, features_used, name_list[i][0]))
         return prepped_clusters
-        
-        

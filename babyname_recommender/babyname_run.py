@@ -11,7 +11,7 @@ from user_data_babyname import UserData
 if __name__ == "__main__":
     database = "babynames_USA.db"
     num_clusters = 30
-    features_used = "original_letters_length"
+    num_features = 5 #selected features to define clusters
     try:
         login = None
         ud = None
@@ -24,7 +24,7 @@ if __name__ == "__main__":
         if user_id is None:
             print("User ID Error")
             raise SystemExit
-        ud = UserData(database,user_id,num_clusters,features_used)
+        ud = UserData(database,user_id,num_clusters,num_features = num_features)
         ud.main_menu()
     except ExitApp:
         print("Have a good day!")

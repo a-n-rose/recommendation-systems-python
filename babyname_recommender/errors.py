@@ -12,7 +12,7 @@ class IPAnotAligned(Error):
 class ExitFunction(Error):
     pass
 
+class RatingsOnlyOneKind(Error):
+    pass
 
-#change table name ratinglists --> users_ratinglists
-#version --> version_ipa_extended, version_ipa_simple, version_letters_simple
 

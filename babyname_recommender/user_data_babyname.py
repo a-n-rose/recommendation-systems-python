@@ -23,7 +23,7 @@ import pandas as pd
 import numpy as np
 import sqlite3
 import time
-from errors import ExitApp, ExitFunction
+from errors import ExitApp, ExitFunction, RatingsOnlyOneKind
 from random import shuffle
 from build_clusters import BuildClusters
 from columns_ipa_extended import get_rel_features
@@ -44,7 +44,6 @@ class UserData:
             self.num_features = 10
         else:
             self.num_features = num_features
-        self.compare_clusters = compare_clusters
         
 ####################### SQL FUNCTIONS #########################################
 
@@ -254,10 +253,11 @@ class UserData:
         rated_names_dict = self.collect_name_ratings()
         prepped_list = self.prep_rating_names_dict(rated_names_dict)
         self.save_rated_names(prepped_list)
-        self.update_clusters()
-        print("clusters updated!")
-        self.list_update()
-        print("list version updated")
+        updated = self.update_clusters()
+        if updated:
+            print("clusters updated!")
+            self.list_update()
+            print("list version updated")
         self.main_menu()
         return None
 
@@ -504,72 +504,81 @@ class UserData:
         Then, apply those features to cluster generation for all names.
         Also, apply weights to the names rated positively
         '''
+        
         start = time.time()
         bc = BuildClusters()
+        
+        try:
+            ################################################################
+            #Step 1
+            
+            #collected rated names and features --> dict --> dataframe --> RFE()
+            all_rated_names = self.get_rated_names()
+            name_features = self.get_extended_ipa_name_features()
+            name_features_dict = bc.features_2_dict(name_features)
+            ratednames_features_dict = bc.ratednames_features_2_dict(name_features_dict,all_rated_names)
+            
+            #dataframe to more easily organize data
+            #weights are the name_ids that the user liked
+            rated_names_df, weights_liked_nameids = bc.dict2dataframe(ratednames_features_dict,ratings=True)
+            
+            #prep the values for reverse feature selection:
+            #features
+            rated_names_features_df = rated_names_df.iloc[:,:-1]
+            #ratings/labels
+            rated_names_ratings_df = rated_names_df.iloc[:,-1]
+            
+            #note, since my features are already one-hot-encoded, don't need to one-hot-encode
+            encoded_feature_cols = rated_names_features_df.columns
+            feature_matrix_reduced, labels_chosen = bc.prune_features(rated_names_features_df.values,rated_names_ratings_df.values,self.num_features)
+            if labels_chosen is not None:
+                selected_feature_indices = np.where(labels_chosen)
+            else:
+                raise RatingsOnlyOneKind()
+        
+            ##############################################################
+            #Step 2
+            
+            #Now update clusters for ALL names, based on the selected features
+            #of the names the user rated
+            #get names and features to dict --> dataframe --> KMeans clustering
+            
+            
+            #name_weights are the weights that will be put into the KMeans clustering algorithm
+            all_names_df, all_name_ids = bc.dict2dataframe(name_features_dict,weight_name_ids=weights_liked_nameids)
+            #features
+            all_names_df = all_names_df.iloc[:,:-1]
+            #weights
+            all_names_weights = all_names_df.iloc[:,-1]
+            
+            #ensure rating is not included, datframe should only have column len of 1176
+            if len(all_names_df.columns) > 1176:
+                all_names_df = all_names_df.loc[:,:1175]
 
-        ################################################################
-        #Step 1
+            
+            #get the columns/features only relevant for the user
+            #i.e. the selected features from step 1
+            selected_column_names = [encoded_feature_cols[i] for i in selected_feature_indices]
+            new_name_features = all_names_df.loc[:,selected_column_names[0]].values
+            name_weights = all_names_weights.values
+            
+            print("Now preparing new cluster labels")
+            updated_clusters = bc.get_cluster_labels(new_name_features,num_clusters=self.num_clusters, sample_weights=name_weights)
+            print("Cluster lables recalculated.")
+            print("now prepping cluster data for sqlite3")
+            updated_clusters_prepped = self.prep_new_clusters_sql(updated_clusters,all_name_ids)
+            print("Cluster labels prepped. Now saving to database")
+            self.update_clusters_database(updated_clusters_prepped)
+            print("Finished!")
+            print("Duration: {}".format(time.time()-start))
+            
+            #for reference: the features most relevant to the user:
+            rel_features = get_rel_features(selected_feature_indices[0])
+            print("Relevant features: {}".format(", ".join(rel_features)))
+            return True
         
-        #collected rated names and features --> dict --> dataframe --> RFE()
-        all_rated_names = self.get_rated_names()
-        name_features = self.get_extended_ipa_name_features()
-        ratednames_features_dict = bc.ratednames_features_2_dict(name_features_dict,all_rated_names,ipa=True)
-        
-        #dataframe to more easily organize data
-        #weights are the name_ids that the user liked
-        rated_names_df, weights_liked_nameids = bc.dict2dataframe(ratednames_features_dict,ratings=True)
-        
-        #prep the values for reverse feature selection:
-        #features
-        rated_names_features_df = rated_names_df.iloc[:,:-1]
-        #ratings/labels
-        rated_names_ratings_df = rated_names_df.iloc[:,-1]
-        
-        #note, since my features are already one-hot-encoded, don't need to one-hot-encode
-        encoded_feature_cols = rated_names_features_df.columns
-        feature_matrix_reduced, labels_chosen = bc.prune_features(rated_names_features_df.values,rated_names_ratings_df.values,self.num_features)
-        selected_feature_indices = np.where(labels_chosen)
-        
-        
-        ##############################################################
-        #Step 2
-        
-        #Now update clusters for ALL names, based on the selected features
-        #of the names the user rated
-        #get names and features to dict --> dataframe --> KMeans clustering
-        
-        name_features_dict = bc.features_2_dict(name_features)
-        #name_weights are the weights that will be put into the KMeans clustering algorithm
-        all_names_df, all_name_ids = bc.dict2dataframe(name_features_dict,weight_name_ids=weights_liked_nameids)
-        #features
-        all_names_df = all_names_df.iloc[:,:-1]
-        #weights
-        all_names_weights = all_names_df.iloc[:,-1]
-        
-        #ensure rating is not included, datframe should only have column len of 1176
-        if len(all_names_df.columns) > 1176:
-            all_names_df = all_names_df.loc[:,:1175]
-
-        
-        #get the columns/features only relevant for the user
-        #i.e. the selected features from step 1
-        selected_column_names = [encoded_feature_cols[i] for i in selected_feature_indices]
-        new_name_features = all_names_df.loc[:,selected_column_names[0]].values
-        name_weights = all_names_weights.values
-        
-        print("Now preparing new cluster labels")
-        updated_clusters = bc.get_cluster_labels(new_name_features,num_clusters=self.num_clusters, sample_weights=name_weights)
-        print("Cluster lables recalculated.")
-        print("now prepping cluster data for sqlite3")
-        updated_clusters_prepped = self.prep_new_clusters_sql(updated_clusters,all_name_ids)
-        print("Cluster labels prepped. Now saving to database")
-        self.update_clusters_database(updated_clusters_prepped)
-        print("Finished!")
-        print("Duration: {}".format(time.time()-start))
-        
-        #for reference: the features most relevant to the user:
-        rel_features = get_rel_features(selected_feature_indices[0])
-        print("Relevant features: {}".format(", ".join(rel_features)))
+        except RatingsOnlyOneKind:
+            print("\nWe need more diverse ratings from you in order to recommend any names. \nYou'll find some you love or hate! Just keep rating.\n")
 
         return None
     

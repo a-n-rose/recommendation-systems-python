@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from errors import RatingsOnlyOneKind
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.cluster import KMeans
 from sklearn import linear_model
@@ -22,13 +23,18 @@ class BuildClusters:
         return labels
     
     def prune_features(self,X,y,num_features):
-        model = LogisticRegression(solver='lbfgs')
-        #removes half of the features if I don't put a number in
-        #I have over 1,000 features, so I don't want that.
-        #an int after model will return that many features (i.e. the best 3 or 10 etc. features)
-        rfe = RFE(model,num_features)
-        new_X = rfe.fit_transform(X,y)
-
+        try:
+            model = LogisticRegression(solver='lbfgs')
+            #removes half of the features if I don't put a number in
+            #I have over 1,000 features, so I don't want that.
+            #an int after model will return that many features (i.e. the best 3 or 10 etc. features)
+        
+            if len(set(y)) < 2:
+                raise RatingsOnlyOneKind()
+            rfe = RFE(model,num_features)
+            new_X = rfe.fit_transform(X,y)
+        except RatingsOnlyOneKind:
+            return None, None
         return new_X, rfe.support_
     
     def features_2_dict(self,features):

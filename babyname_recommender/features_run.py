@@ -52,8 +52,8 @@ if __name__ == "__main__":
                 features = bt.get_basic_ipa_features()
             elif features_used == "features_ipa_extended":
                 features = bt.get_extended_ipa_features()
-            features_dict = bc.features_2_dict(features,ipa=True)
-            new_features_df = bc.dict2dataframe(features_dict)
+            features_dict = bc.features_2_dict(features)
+            new_features_df, name_ids = bc.dict2dataframe(features_dict)
             new_features = new_features_df.values
         
         for num in num_clusters:

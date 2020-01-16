@@ -57,8 +57,12 @@ class BuildClusters:
             name_id = name_rating_set[0]
             rating = name_rating_set[1]
             name_features = name_feature_dict[name_id]
-            #expanded ipa has 1175 columns
-            if len(name_features) == 1175:
+            #expanded ipa has 1214 columns
+            #TODO: automate the following line
+            #print()
+            #print(len(name_features))
+            #print()
+            if len(name_features) == len(name_features):
                 name_features.append(rating)
                 ratednames_dict[name_id] = name_features
             else:
@@ -102,6 +106,9 @@ class BuildClusters:
             #make sure No NAN and fill with 1. 
             #if fill with zero, increase chances of Zero Division Error causing problems. 
             sorted_name_df= sorted_name_df.fillna(1)
+        else:
+            sorted_name_df["weights"] = 1
+            name_ids = sorted_name_df.index.values.tolist()
         return sorted_name_df, name_ids
 
     def accuracy_recommendations(self,rec_dict_ratings):

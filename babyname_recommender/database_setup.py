@@ -2,7 +2,7 @@
 import traceback
 import time
 
-from data_prep_babyname2 import Setup_Name_DB
+from data_prep_babyname import Setup_Name_DB
 
 '''
 Saves name data from US social security applications to two basic tables in a database:

@@ -546,14 +546,12 @@ class UserData:
             
             #name_weights are the weights that will be put into the KMeans clustering algorithm
             all_names_df, all_name_ids = bc.dict2dataframe(name_features_dict,weight_name_ids=weights_liked_nameids)
-            #features
-            all_names_df = all_names_df.iloc[:,:-1]
             #weights
             all_names_weights = all_names_df.iloc[:,-1]
-            
-            #ensure rating is not included, datframe should only have column len of 1176
-            if len(all_names_df.columns) > 1176:
-                all_names_df = all_names_df.loc[:,:1175]
+            #features
+            all_names_df = all_names_df.iloc[:,:-1]
+
+            # need to ensure rating column is not included... need to improve this functionality in general
 
             
             #get the columns/features only relevant for the user

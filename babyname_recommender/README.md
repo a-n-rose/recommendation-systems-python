@@ -79,6 +79,16 @@ $ source env/bin/activate
 (env)...$ python3 database_setup.py
 
 ```
+### Create the IPA features
+
+```
+(env)...$ python3 create_ipa_features.py
+```
+
+### Run the program to setup clustering based on features
+```
+(env)...$ python3 features_run.py
+```
 
 ### To collect ratings:
 Run *after* the database has been set up!

@@ -8,7 +8,7 @@ class BuildTables:
         self.c = self.conn.cursor()
         
     def get_names(self): 
-        msg = '''SELECT name_id, name FROM names '''
+        msg = '''SELECT name_id, name FROM names'''
         self.c.execute(msg)
         names = self.c.fetchall()
         return names
@@ -59,16 +59,11 @@ class BuildTables:
         return basic_features
     
     def get_extended_ipa_features(self):
-        babyname_type = self.get_saved_babyname_type()
-        if int(babyname_type) == 1:
-            msg = '''SELECT * FROM features_ipa_extended'''
-        elif int(babyname_type) == 2:
-            msg = '''SELECT * FROM features_ipa_extended WHERE sex='M' '''
-        elif int(babyname_type) == 3:
-            msg = '''SELECT * FROM features_ipa_extended WHERE sex='F' '''
+        msg = '''SELECT * FROM features_ipa_extended'''
         self.c.execute(msg)
         extended_features = self.c.fetchall()
         return extended_features
+    
     
 class BuildFeatures:
     def get_chars_length_dicts(self,names_tuple_list):

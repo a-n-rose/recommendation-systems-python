@@ -120,6 +120,7 @@ class UserData:
         return None
     
     def insert_saved_names(self, prepped_saved_names):
+        self.access_saved_names_table()
         msg = '''INSERT INTO users_saved_names VALUES(NULL, ?, ?) '''
         self.c.executemany(msg,prepped_saved_names)
         self.conn.commit()
@@ -158,9 +159,10 @@ class UserData:
         return None
     
     def get_clusters_nameid(self):
-        t = (str(self.list_id),str(self.num_clusters),self.features_used,self.list_version)
-        msg = '''SELECT cluster_name_id, cluster FROM users_clusters_updates WHERE cluster_ratinglist_id=? AND num_clusters=? AND features_used=? AND list_version=?'''
-        self.c.execute(msg,t)
+        #t = (str(self.list_id),str(self.num_clusters),self.features_used,self.list_version)
+        msg = '''SELECT cluster_name_id, cluster FROM default_clusters'''
+        #msg = '''SELECT cluster_name_id, cluster FROM users_clusters_updates WHERE cluster_ratinglist_id=? AND num_clusters=? AND features_used=? AND list_version=?'''
+        self.c.execute(msg)
         name_clusters = self.c.fetchall()
         return name_clusters
 
@@ -215,6 +217,7 @@ class UserData:
         return extended_features
         
     def get_saved_names(self):
+        self.access_saved_names_table()
         msg = '''SELECT name FROM users_saved_names WHERE list_id=? '''
         t = (self.list_id,)
         self.c.execute(msg,t)
@@ -236,7 +239,7 @@ class UserData:
         elif 2 == int(choice):
             #choice to get recommendations and save names
             self.show_and_choose_lists()
-            self.activate_clusters()
+            #self.activate_clusters()
             self.recommend_names()
         elif 3 == int(choice):
             #choice to see your saved names
@@ -253,11 +256,11 @@ class UserData:
         rated_names_dict = self.collect_name_ratings()
         prepped_list = self.prep_rating_names_dict(rated_names_dict)
         self.save_rated_names(prepped_list)
-        updated = self.update_clusters()
-        if updated:
-            print("clusters updated!")
-            self.list_update()
-            print("list version updated")
+        #updated = self.update_clusters()
+        #if updated:
+            #print("clusters updated!")
+            #self.list_update()
+            #print("list version updated")
         self.main_menu()
         return None
 
@@ -433,8 +436,8 @@ class UserData:
         lists_actualized = self.get_lists()
         self.make_list_dict(lists_actualized)
         self.set_mostrecentlist_as_listchoice()
-        self.access_user_clusters_table()
-        self.activate_clusters()
+        #self.access_user_clusters_table()
+        #self.activate_clusters()
         self.rate_names()
         return None
     

@@ -167,15 +167,7 @@ class UserData:
         return name_clusters
 
     def get_names(self):
-        babyname_type = self.get_saved_babyname_type()
-        if int(babyname_type) == 1:
-            msg = '''SELECT name_id, name FROM names'''
-        elif int(babyname_type) == 2:
-            msg = '''SELECT name_id, name FROM names WHERE sex='M' '''
-        elif int(babyname_type) == 3:
-            msg = '''SELECT name_id, name FROM names WHERE sex='F' '''
-        else:
-            raise ExitApp("Problem with babyname type.")
+        msg = '''SELECT names.name_id, names.name, names.sex FROM names INNER JOIN popularity ON names.name_id=popularity.year_name_id WHERE popularity.year>2000 and popularity.popularity>100 '''
         self.c.execute(msg)
         names = self.c.fetchall()
         return names
@@ -198,7 +190,13 @@ class UserData:
         return ratings
     
     def get_names_nameids(self):
-        msg = '''SELECT name, name_id FROM names '''
+        babyname_type = self.get_saved_babyname_type()
+        if int(babyname_type) == 1:
+            msg = '''SELECT name, name_id FROM names '''
+        elif int(babyname_type) == 2:
+            msg = '''SELECT name, name_id FROM names WHERE sex='M' '''
+        elif int(babyname_type) == 3:
+            msg = '''SELECT name, name_id FROM names WHERE sex='F' '''
         self.c.execute(msg)
         names = self.c.fetchall()
         return names
@@ -446,17 +444,31 @@ class UserData:
 # rate names
 #############################################################################
 
+    def filter_sex(self,name_tuple):
+        babyname_type = self.get_saved_babyname_type()
+        if name_tuple[2] == 'F' and (int(babyname_type) == 3 or int(babyname_type) == 1):
+            return name_tuple
+        elif name_tuple[2] == 'M' and (int(babyname_type) == 2 or int(babyname_type) == 1):
+            return name_tuple
+
     def rate_name(self,name):
-        print("\nEnter 1 for 'like', 0 for 'dislike:")
-        print("\n{}\n".format(name))
-        rating = input()
-        if rating.isdigit():
-            if int(rating) == 0 or int(rating) ==1:
-                return rating
-        else:
-            if 'exit' == rating.lower():
-                return False
+        name = self.filter_sex(name)
+        if name is not None:
+            print("\nEnter 1 for 'like', 0 for 'dislike:")
+            print("\n{}\n".format(name[1]))
+            rating = input()
+            if rating.isdigit():
+                if int(rating) == 0 or int(rating) ==1:
+                    return rating
+            else:
+                if 'exit' == rating.lower():
+                    return False
         return None
+
+    def remove_duplicates(self,names_sql_inquiry):
+        names_df = pd.DataFrame(names_sql_inquiry, columns = ['name_id','name','sex'])
+        names_df = names_df.drop_duplicates(subset='name_id')
+        return names_df
     
     def collect_name_ratings(self):
         collect = True
@@ -464,12 +476,13 @@ class UserData:
         self.access_ratings_table()
         names = self.get_names()
         shuffle(names)
+        names = self.remove_duplicates(names)
         rating_dict = {}
         while collect == True:
             for i in range(len(names)):
                 if collect == False:
                     break
-                rating = self.rate_name(names[i][1])
+                rating = self.rate_name(names.iloc[i])
                 if rating == False:
                     collect = False
                     break
@@ -477,7 +490,7 @@ class UserData:
                     pass
                 elif rating.isdigit():
                     names_rated+=1
-                    rating_dict[names[i][0]] = rating
+                    rating_dict[str(names.iloc[i][0])] = rating
                 if names_rated == 25:
                     print("25 names rated")
                 elif names_rated == 50:
@@ -648,7 +661,11 @@ class UserData:
         '''
         names = []
         for name_id in name_ids_list:
-            names.append(name_id_dict[name_id])
+            try:
+                names.append(name_id_dict[name_id])
+            except KeyError:
+                pass
+                # boy or girl names not matching desired search type
         shuffle(names)
         return names
 

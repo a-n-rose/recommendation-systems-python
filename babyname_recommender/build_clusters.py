@@ -117,5 +117,8 @@ class BuildClusters:
         for key, value in rec_dict_ratings.items():
             if int(value) == 1:
                 liked+=1
-        score = liked/float(total)*100
+        if liked > 0:
+            score = liked/float(total)*100
+        else:
+            score = 0.0
         return score

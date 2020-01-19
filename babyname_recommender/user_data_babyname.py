@@ -165,10 +165,64 @@ class UserData:
         self.c.execute(msg)
         name_clusters = self.c.fetchall()
         return name_clusters
+    
+    def get_yeardict(self, year_period):
+        yeardict = {}
+        year_period = int(year_period)
+        if year_period == 1:
+            yeardict['yearstart'] = 1880
+            yeardict['yearend'] = 2018
+        elif year_period == 2: 
+            yeardict['yearstart'] = 1880
+            yeardict['yearend'] = 1915
+        elif year_period == 3:
+            yeardict['yearstart'] = 1916
+            yeardict['yearend'] = 1951
+        elif year_period == 4:
+            yeardict['yearstart'] = 1952
+            yeardict['yearend'] = 1987
+        elif year_period == 5:
+            yeardict['yearstart'] = 1988
+            yeardict['yearend'] = 2018
+        print(yeardict)
+        return yeardict
+    
+    def get_popdict(self, pop_choice):
+        '''
+        TODO: normalize these values
+        min:  0.119
+        max: 4791.9438
+        '''
+        popdict = {}
+        pop_choice = int(pop_choice)
+        if pop_choice == 1:
+            popdict['pop_low'] = 0.0
+            popdict['pop_high'] = 5000.0
+        elif pop_choice == 2: 
+            popdict['pop_low'] = 100.0
+            popdict['pop_high'] = 5000.0
+        elif pop_choice == 3:
+            popdict['pop_low'] = 10.0
+            popdict['pop_high'] = 100.0
+        elif pop_choice == 4:
+            popdict['pop_low'] = 1.0
+            popdict['pop_high'] = 10.0
+        elif pop_choice == 5:
+            popdict['pop_low'] = 0.0
+            popdict['pop_high'] = 1.0
+        return popdict
 
     def get_names(self):
-        msg = '''SELECT names.name_id, names.name, names.sex FROM names INNER JOIN popularity ON names.name_id=popularity.year_name_id WHERE popularity.year>2000 and popularity.popularity>100 '''
-        self.c.execute(msg)
+        self.show_year_options()
+        year_period = self.choose_year_period()
+        yeardict = self.get_yeardict(year_period)
+        self.show_popularity_options()
+        popularity_level = self.choose_popularity_level()
+        popdict = self.get_popdict(popularity_level)
+        t = (yeardict['yearstart'], yeardict['yearend'],
+             popdict['pop_low'], popdict['pop_high'])
+        msg = '''SELECT names.name_id, names.name, names.sex FROM names INNER JOIN popularity ON names.name_id=popularity.year_name_id WHERE popularity.year BETWEEN ? AND ? and popularity.popularity BETWEEN ? AND ? '''
+        self.c.execute(msg, t)
         names = self.c.fetchall()
         return names
 
@@ -413,12 +467,73 @@ class UserData:
             self.choose_babyname_type()
         return babyname_type
     
+    def show_year_options(self):
+        print('Which year period of names are you interested in?')
+        print('1) all years (defualt)')
+        print('2) 1880 - 1915')
+        print('3) 1916 - 1951')
+        print('4) 1952 - 1987')
+        print('5) 1988 - 2018')
+        
+    def choose_year_period(self):
+        choice = input()
+        if choice.isdigit():
+            if 1 == int(choice):
+                year_period = choice
+            elif 2 == int(choice):
+                year_period = choice
+            elif 3 == int(choice):
+                year_period = choice
+            elif 4 == int(choice):
+                year_period = choice
+            elif 5 == int(choice):
+                year_period = choice
+            else:
+                print("Please enter the corresponding number, (1 through 5)")
+                self.choose_year_period()
+        elif 'exit' in choice:
+            raise ExitApp("Have a good one :)")
+        else:
+            print("Please enter the corresponding number or 'exit'.")
+            self.choose_year_period()
+        return year_period 
+    
+    def show_popularity_options(self):
+        print('How popular of names are you interested in?')
+        print('1) all names')
+        print('2) very popular')
+        print('3) somewhat popular (default)')
+        print('4) unique')
+        print('5) very unique')
+    
+    def choose_popularity_level(self):
+        choice = input()
+        if choice.isdigit():
+            if 1 == int(choice):
+                popularity_level = choice
+            elif 2 == int(choice):
+                popularity_level = choice
+            elif 3 == int(choice):
+                popularity_level = choice
+            elif 4 == int(choice):
+                popularity_level = choice
+            elif 5 == int(choice):
+                popularity_level = choice
+            else:
+                print("Please enter the corresponding number, (1 through 5)")
+                self.choose_popularity_level()
+        elif 'exit' in choice:
+            raise ExitApp("Have a good one :)")
+        else:
+            print("Please enter the corresponding number or 'exit'.")
+            self.choose_popularity_level()
+        return popularity_level 
+    
     def set_mostrecentlist_as_listchoice(self):
         lists = self.get_lists()
         num_lists = len(lists)
         self.listchoice = num_lists
         return None
-    
 
     def create_new_ratinglist(self):
         '''
@@ -430,6 +545,7 @@ class UserData:
         list_name = self.get_list_name()
         self.show_nametype_options()
         babyname_type = self.choose_babyname_type()
+        
         self.save_list(list_name,babyname_type)
         lists_actualized = self.get_lists()
         self.make_list_dict(lists_actualized)
